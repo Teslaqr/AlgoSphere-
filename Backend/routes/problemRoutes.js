@@ -1,8 +1,9 @@
+// routes/problemRoutes.js
 import express from 'express';
-import { fetchAndStoreProblems } from '../controllers/problemController.js';
+import { getAllProblems } from '../controllers/problemController.js';
 
 const router = express.Router();
 
-router.post('/fetch', fetchAndStoreProblems);
+router.get('/', getAllProblems);
 
 export default router;

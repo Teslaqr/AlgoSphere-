@@ -1,34 +1,41 @@
 import axios from 'axios';
-import Problem from './models/Problem.js';
+import Problem from '../models/problem.js';
+
+
+
+export const getAllProblems = async (req, res) => {
+  try {
+    const problems = await Problem.find();
+    res.json(problems);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+};
+
 
 export const fetchAndStoreProblems = async (req, res) => {
-    try {
-        const response = await axios.get('https://codeforces.com/api/problemset.problems');
-        const problems = response.data.result.problems;
-        const problemStats = response.data.result.problemStatistics;
+  try {
+    const { data } = await axios.get('https://codeforces.com/api/problemset.problems');
 
-        await Problem.deleteMany({}); // Clear existing data
+    const problems = data.result.problems.map((p) => ({
+      contestId: p.contestId,
+      index: p.index,
+      name: p.name,
+      type: p.type,
+      rating: p.rating || 0,
+      tags: p.tags || [],
+      url: `https://codeforces.com/problemset/problem/${p.contestId}/${p.index}`,
+      creationTime: new Date((p.creationTimeSeconds || Date.now() / 1000) * 1000),
+    }));
 
-        const bulk = problems.map((p, idx) => ({
-            updateOne: {
-                filter: { contestId: p.contestId, index: p.index },
-                update: {
-                    contestId: p.contestId,
-                    index: p.index,
-                    name: p.name,
-                    type: p.type,
-                    rating: p.rating || null,
-                    tags: p.tags,
-                    url: `https://codeforces.com/problemset/problem/${p.contestId}/${p.index}`,
-                    creationTime: new Date()
-                },
-                upsert: true
-            }
-        }));
+    // optional: clear old problems
+    await Problem.deleteMany({});
 
-        await Problem.bulkWrite(bulk);
-        res.status(200).json({ message: 'Problems fetched and stored successfully' });
-    } catch (err) {
-        res.status(500).json({ error: err.message });
-    }
+    // bulk insert
+    await Problem.insertMany(problems);
+
+    res.status(200).json({ message: 'Problems fetched and stored', count: problems.length });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
 };

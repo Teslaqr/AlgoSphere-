@@ -1,7 +1,11 @@
+//App.jsx
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import Home from './pages/Home';
 import CreateContest from './pages/createContest';
-import ContestRoom from './pages/createContest';
+import ContestPage from './pages/contestPage';
+
+
+
 import Navbar from './components/Navbar';
 
 function App() {
@@ -12,7 +16,7 @@ function App() {
         <Routes>
           <Route path="/" element={<Home />} />
           <Route path="/create" element={<CreateContest />} />
-          <Route path="/contest/:id" element={<ContestRoom />} />
+          <Route path="/contest/:id" element={<ContestPage />} /> 
         </Routes>
       </div>
     </Router>

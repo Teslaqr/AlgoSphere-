@@ -1,8 +1,8 @@
-import express from 'express';
-import { createContest } from '../controllers/contestController.js';
-
+const express = require('express');
 const router = express.Router();
+const { createContest } = require('../controllers/contestController');
 
-router.post('/create', createContest);
+// Route to create a new contest
+router.post('/', createContest);
 
-export default router;
+module.exports = router;

@@ -1,4 +1,4 @@
-const TAGS = [
+export const tagsList = [
   "2-sat","binary search","bitmasks","brute force","combinatorics",
   "constructive algorithms","data structures","dfs and similar","divide and conquer",
   "dp","dsu","expression parsing","fft","flows","games","geometry",
@@ -7,4 +7,3 @@ const TAGS = [
   "probabilities","schedules","shortest paths","sortings","string suffix structures",
   "strings","ternary search","trees","two pointers","special"
 ];
-export default TAGS;
