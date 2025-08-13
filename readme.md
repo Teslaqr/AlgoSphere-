@@ -73,7 +73,10 @@ npm run dev
 
 ---
 
+### 🌐 Live Demo  
+[🚀 Try the Platform Here](https://code-sync-sandy.vercel.app/)
 
+------
 
 ## ✨ Key Functionalities
 

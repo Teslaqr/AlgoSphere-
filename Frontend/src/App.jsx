@@ -8,26 +8,24 @@ import ContestPage from './pages/contestPage';
 
 import Navbar from './components/Navbar';
 
-function App() {
-  return (
-    <Router>
-      <div className="min-h-screen bg-gray-100">
-        <Navbar />
-        <Routes>
-          <Route path="/" element={<Home />} />
-          <Route path="/create" element={<CreateContest />} />
-          <Route path="/contest/:id" element={<ContestPage />} /> 
-        </Routes>
-      </div>
-    </Router>
-  );
-}
-// export default function App() {
+// function App() {
 //   return (
-//     <div className="min-h-screen bg-red-100 flex items-center justify-center">
-//       <h1 className="text-4xl text-red-800">Tailwind Is Now Working!</h1>
-//     </div>
+//     <Router>
+//       <div className="min-h-screen bg-gray-100">
+//         <Navbar />
+//         <Routes>
+//           <Route path="/" element={<Home />} />
+//           <Route path="/create" element={<CreateContest />} />
+//           <Route path="/contest/:id" element={<ContestPage />} /> 
+//         </Routes>
+//       </div>
+//     </Router>
 //   );
 // }
-
+function App() {
+  return <h1>Hello World</h1>;
+}
 export default App;
+
+
+// export default App;
