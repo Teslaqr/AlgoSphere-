@@ -1,0 +1,23 @@
+# Dependencies
+Backend/node_modules/
+Frontend/node_modules/
+
+# Environment files
+Backend/.env
+
+# Build output
+Frontend/dist/
+
+# Git metadata
+.git/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+
+# Optional
+structure.txt
+.agents/
