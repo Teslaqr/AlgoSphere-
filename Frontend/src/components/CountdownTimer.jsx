@@ -1,8 +1,8 @@
 // src/components/CountdownTimer.jsx
-import { useState, useEffect } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 
-const CountdownTimer = ({ targetDate, early = false, setCurrentTime }) => {
-  const calculateTimeLeft = () => {
+const CountdownTimer = ({ targetDate, early = false, setCurrentTime, compact = false }) => {
+  const calculateTimeLeft = useCallback(() => {
     const difference = new Date(targetDate) - new Date()
     let timeLeft = {}
     if (difference > 0) {
@@ -16,7 +16,7 @@ const CountdownTimer = ({ targetDate, early = false, setCurrentTime }) => {
       timeLeft = { days: 0, hours: 0, minutes: 0, seconds: 0 }
     }
     return timeLeft
-  }
+  }, [targetDate])
 
   const [timeLeft, setTimeLeft] = useState(calculateTimeLeft())
 
@@ -32,30 +32,42 @@ const CountdownTimer = ({ targetDate, early = false, setCurrentTime }) => {
 
     setTimeLeft(calculateTimeLeft())
     return () => clearInterval(timer)
-  }, [targetDate, early, setCurrentTime])
+  }, [calculateTimeLeft, early, setCurrentTime, targetDate])
 
-  const timerComponents = []
-  Object.keys(timeLeft).forEach(interval => {
-    if (!timeLeft[interval]) return
-    timerComponents.push(
-      <span key={interval}>
-        {timeLeft[interval]} <span>{interval} </span>
-      </span>
-    )
-  })
+  const units = [
+    ['days', 'D'],
+    ['hours', 'H'],
+    ['minutes', 'M'],
+    ['seconds', 'S'],
+  ]
+  const hasTimeLeft = Object.values(timeLeft).some(Boolean)
 
   return (
-    <div className='text-2xl mt-10'>
-      {timerComponents.length ? (
+    <div className={compact ? 'text-left' : 'mt-10 text-2xl'}>
+      {hasTimeLeft ? (
         early ? (
           <>
-            <p className='mb-2'>Contest starts in:</p>
-            <span>{timerComponents}</span>
+            {!compact && <p className='mb-2'>Contest starts in:</p>}
+            <div className='flex flex-wrap gap-2'>
+              {units.map(([unit, label]) => (
+                <span className='rounded-md bg-white px-3 py-2 text-center shadow-sm ring-1 ring-slate-200' key={unit}>
+                  <span className='block text-xl font-bold text-slate-950'>{timeLeft[unit]}</span>
+                  <span className='text-xs font-semibold uppercase text-slate-500'>{label}</span>
+                </span>
+              ))}
+            </div>
           </>
         ) : (
           <>
-            <p className='mb-2'>Time remaining:</p>
-            <span>{timerComponents}</span>
+            {!compact && <p className='mb-2'>Time remaining:</p>}
+            <div className='flex flex-wrap gap-2'>
+              {units.map(([unit, label]) => (
+                <span className='rounded-md bg-white px-3 py-2 text-center shadow-sm ring-1 ring-slate-200' key={unit}>
+                  <span className='block text-xl font-bold text-slate-950'>{timeLeft[unit]}</span>
+                  <span className='text-xs font-semibold uppercase text-slate-500'>{label}</span>
+                </span>
+              ))}
+            </div>
           </>
         )
       ) : (

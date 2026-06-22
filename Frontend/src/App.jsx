@@ -8,24 +8,19 @@ import ContestPage from './pages/contestPage';
 
 import Navbar from './components/Navbar';
 
-// function App() {
-//   return (
-//     <Router>
-//       <div className="min-h-screen bg-gray-100">
-//         <Navbar />
-//         <Routes>
-//           <Route path="/" element={<Home />} />
-//           <Route path="/create" element={<CreateContest />} />
-//           <Route path="/contest/:id" element={<ContestPage />} /> 
-//         </Routes>
-//       </div>
-//     </Router>
-//   );
-// }
 function App() {
-  return <h1>Hello World</h1>;
+  return (
+    <Router>
+      <div className="min-h-screen bg-gray-100">
+        <Navbar />
+        <Routes>
+          <Route path="/" element={<Home />} />
+          <Route path="/create" element={<CreateContest />} />
+          <Route path="/contest/:id" element={<ContestPage />} /> 
+        </Routes>
+      </div>
+    </Router>
+  );
 }
+
 export default App;
-
-
-// export default App;

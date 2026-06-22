@@ -1,159 +1,170 @@
-//controller/contestController.js
 const Contest = require('../models/contest');
-const User = require('../models/user');
-const Team = require('../models/team');
-const { unwantedContests } = require('../utils/unwantedContests');
+const codeforces = require('../utils/codeforcesClient');
 const fetchCodeforcesProblems = require('../utils/fetchCodeforcesProblems');
 
-const roundOff = (num) => {
-  const remainder = num % 100;
-  const randomValue = Math.random();
-  return randomValue <= remainder / 100 ? num + (100 - remainder) : num - remainder;
+const toNumber = (value) => Number(value);
+
+const asyncHandler = (handler) => (req, res, next) => {
+  Promise.resolve(handler(req, res, next)).catch(next);
 };
 
-const shuffle = (array) => {
-  for (let i = array.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * array.length);
-    [array[i], array[j]] = [array[j], array[i]];
+const parseStartsIn = (startsIn) => {
+  if (startsIn === 'Immediately') return 0;
+  const minutes = Number(startsIn);
+  return Number.isFinite(minutes) && minutes >= 0 ? minutes : 0;
+};
+
+const createContest = asyncHandler(async (req, res) => {
+  const {
+    codeforcesId1,
+    codeforcesId2,
+    codeforcesId3,
+    numQuestions,
+    lowerDifficulty,
+    upperDifficulty,
+    timeLimit,
+    shuffleOrder = true,
+    tags = [],
+    contestantType = 'Solo',
+    selectedTeam,
+    startsIn = 0,
+    startYear,
+    chooseDifficulty = 'distributeRandomly',
+    diffArr = [],
+  } = req.body;
+
+  const handles = [codeforcesId1, codeforcesId2, codeforcesId3]
+    .map((handle) => String(handle || '').trim())
+    .filter(Boolean);
+  const uniqueHandles = new Set(handles.map((handle) => handle.toLowerCase()));
+  const questionCount = toNumber(numQuestions);
+  const duration = toNumber(timeLimit);
+  const minRating = toNumber(lowerDifficulty);
+  const maxRating = toNumber(upperDifficulty);
+  const manualRatings = Array.isArray(diffArr) ? diffArr.map(Number) : [];
+
+  if (!handles.length) {
+    return res.status(400).json({ message: 'Add at least one Codeforces handle.', ok: false });
   }
-};
 
-const createContest = async (req, res) => {
-  try {
-    const {
-      codeforcesId1, codeforcesId2, codeforcesId3,
-      numQuestions, lowerDifficulty, upperDifficulty,
-      timeLimit, shuffleOrder, tags, contestantType,
-      selectedTeam, startsIn, startYear, chooseDifficulty, diffArr
-    } = req.body;
+  if (uniqueHandles.size !== handles.length) {
+    return res.status(400).json({ message: 'Duplicate Codeforces handles are not allowed.', ok: false });
+  }
 
-    if (!codeforcesId1 || !numQuestions || !timeLimit || shuffleOrder === undefined || !tags || !contestantType || !startsIn || !startYear) {
-      return res.status(400).json({ message: 'Fill all the fields', ok: false });
+  if (contestantType === 'Team' && handles.length < 2) {
+    return res.status(400).json({ message: 'Team mode requires at least 2 participants.', ok: false });
+  }
+
+  if (!Number.isInteger(questionCount) || questionCount < 1 || questionCount > 20) {
+    return res.status(400).json({ message: 'Number of questions must be between 1 and 20.', ok: false });
+  }
+
+  if (!Number.isFinite(duration) || duration < 1) {
+    return res.status(400).json({ message: 'Contest duration must be at least 1 minute.', ok: false });
+  }
+
+  if (chooseDifficulty === 'true') {
+    if (manualRatings.length !== questionCount || manualRatings.some((rating) => !Number.isFinite(rating))) {
+      return res.status(400).json({ message: 'Enter one valid rating for every question.', ok: false });
     }
+  } else if (!Number.isFinite(minRating) || !Number.isFinite(maxRating) || minRating > maxRating) {
+    return res.status(400).json({ message: 'Enter a valid difficulty range.', ok: false });
+  }
 
-    if (chooseDifficulty === 'false' || chooseDifficulty === 'distributeRandomly') {
-      if (!lowerDifficulty || !upperDifficulty) {
-        return res.status(400).json({ message: 'Fill all the fields', ok: false });
-      }
-    } else if (diffArr.length !== numQuestions) {
-      return res.status(400).json({ message: 'Incorrect difficulty array', ok: false });
-    }
+  const { handles: contestants, problems } = await fetchCodeforcesProblems({
+    handles,
+    numQuestions: questionCount,
+    lowerDifficulty: minRating,
+    upperDifficulty: maxRating,
+    shuffleOrder: Boolean(shuffleOrder),
+    tags,
+    chooseDifficulty,
+    diffArr: manualRatings,
+    startYear,
+  });
 
-    const uniqueHandles = new Set([codeforcesId1, codeforcesId2, codeforcesId3].filter(Boolean).map(h => h.toLowerCase()));
-    if (uniqueHandles.size !== [codeforcesId1, codeforcesId2, codeforcesId3].filter(Boolean).length) {
-      return res.status(400).json({ message: 'Duplicate Codeforces handles are not allowed', ok: false });
-    }
-
-    const contestants = [];
-    const handles = [codeforcesId1, codeforcesId2, codeforcesId3].filter(Boolean);
-    for (const handle of handles) {
-      const userRes = await fetch(`https://codeforces.com/api/user.info?handles=${handle}`);
-      const userData = await userRes.json();
-      if (userData.status === "FAILED") {
-        return res.status(400).json({ message: `Invalid handle: ${handle}`, ok: false });
-      }
-      contestants.push(userData.result[0].handle);
-    }
-
-    if (contestantType === "Team" && contestants.length < 2) {
-      return res.status(400).json({ message: "Team mode requires at least 2 participants", ok: false });
-    }
-
-    const solvedSet = new Set();
-    for (const handle of contestants) {
-      const submissions = await fetch(`https://codeforces.com/api/user.status?handle=${handle}&count=10000`);
-      const submissionData = await submissions.json();
-      if (submissionData.status === "FAILED") {
-        return res.status(400).json({ message: `Error with handle: ${handle}`, ok: false });
-      }
-      submissionData.result.forEach(({ problem }) => {
-        if (problem) solvedSet.add(`${problem.contestId}${problem.index}`);
-      });
-    }
-
-    const allProblems = await fetchCodeforcesProblems();
-    const classified = {};
-    for (const problem of allProblems) {
-      if (!classified[problem.rating]) classified[problem.rating] = [];
-      classified[problem.rating].push(problem);
-    }
-
-    const startTime = Date.now();
-    const newList = [];
-    let count = 0;
-
-    // Helper to check problem validity
-    const isValidProblem = (problem) =>
-      !solvedSet.has(`${problem.contestId}${problem.index}`) &&
-      !unwantedContests.includes(problem.contestId) &&
-      tags.some(t => problem.tags.includes(t)) &&
-      !newList.find(p => p.contestId === problem.contestId && p.index === problem.index);
-
-    const addProblem = (rating) => {
-      if (!classified[rating] || classified[rating].length === 0) return false;
-      for (let i = 0; i < 50; i++) {
-        const idx = Math.floor(Math.random() * classified[rating].length);
-        const p = classified[rating][idx];
-        if (isValidProblem(p)) {
-          newList.push(p);
-          return true;
-        }
-      }
-      return false;
-    };
-
-    while (newList.length < numQuestions && Date.now() - startTime < 10000) {
-      count++;
-      if (chooseDifficulty === 'true') {
-        const rating = diffArr[newList.length];
-        if (!addProblem(rating)) break;
-      } else if (chooseDifficulty === 'distributeRandomly') {
-        const rating = roundOff(Math.random() * (upperDifficulty - lowerDifficulty)) + Number(lowerDifficulty);
-        if (!addProblem(rating)) break;
-      } else {
-        const delta = (upperDifficulty - lowerDifficulty) / numQuestions;
-        const rating = roundOff(Number(lowerDifficulty) + delta * newList.length);
-        if (!addProblem(rating)) break;
-      }
-    }
-
-    if (newList.length < numQuestions) {
-      return res.status(200).json({ message: "Unable to fetch enough problems. Try adjusting criteria.", ok: false });
-    }
-
-    if (shuffleOrder) shuffle(newList);
-    else newList.sort((a, b) => a.rating - b.rating);
-
-    const now = new Date();
-    const start = startsIn === "Immediately" ? now : new Date(now.getTime() + startsIn * 60000);
-    const end = new Date(start.getTime() + timeLimit * 60000);
-
-    const users = await User.find({ codeforcesId: { $in: contestants } });
-
-    const contest = await Contest.create({
-      users,
-      problemList: newList,
-      contestants,
-      numberOfQuestions: numQuestions,
-      lowerLimit: lowerDifficulty,
-      upperLimit: upperDifficulty,
-      timeLimit,
-      timeStart: start,
-      timeEnding: end,
-      contestantType,
-      team: selectedTeam !== "Select Team" ? selectedTeam : undefined,
-      distributeRandomly: chooseDifficulty === "distributeRandomly",
-      chooseDifficulty: chooseDifficulty === "true",
-      diffArr: chooseDifficulty !== "false" ? diffArr : undefined,
-      startYear,
+  if (problems.length < questionCount) {
+    return res.status(422).json({
+      message: 'Unable to fetch enough unsolved problems. Try fewer tags or a wider rating range.',
+      ok: false,
     });
-
-    return res.status(200).json({ message: "Contest created", id: contest._id, ok: true });
-
-  } catch (err) {
-    console.error(err);
-    return res.status(500).json({ message: "Internal Server Error", ok: false });
   }
-};
 
-module.exports = { createContest };
+  const startDelay = parseStartsIn(startsIn);
+  const startTime = new Date(Date.now() + startDelay * 60 * 1000);
+  const endTime = new Date(startTime.getTime() + duration * 60 * 1000);
+
+  const contest = await Contest.create({
+    contestants,
+    contestantType,
+    selectedTeam: selectedTeam === 'Select Team' ? undefined : selectedTeam,
+    numQuestions: questionCount,
+    lowerDifficulty: minRating,
+    upperDifficulty: maxRating,
+    duration,
+    startTime,
+    endTime,
+    startsIn: startDelay,
+    startYear: Number(startYear) || undefined,
+    tags,
+    shuffle: Boolean(shuffleOrder),
+    chooseDifficulty,
+    difficultyDistribution: chooseDifficulty === 'true' ? manualRatings : [],
+    problems,
+  });
+
+  return res.status(201).json({
+    message: 'Contest created',
+    id: contest._id,
+    ok: true,
+    contest,
+  });
+});
+
+const getContestById = asyncHandler(async (req, res) => {
+  const contest = await Contest.findById(req.params.id);
+
+  if (!contest) {
+    return res.status(404).json({ message: 'Contest not found', ok: false });
+  }
+
+  return res.json(contest);
+});
+
+const getContests = asyncHandler(async (req, res) => {
+  const contests = await Contest.find().sort({ createdAt: -1 }).limit(50);
+  return res.json(contests);
+});
+
+const getContestProgress = asyncHandler(async (req, res) => {
+  const contest = await Contest.findById(req.params.id);
+
+  if (!contest) {
+    return res.status(404).json({ message: 'Contest not found', ok: false });
+  }
+
+  const solvedByProblem = {};
+  const problemKeys = new Set(contest.problems.map((problem) => codeforces.problemKey(problem)));
+
+  for (const handle of contest.contestants) {
+    const solved = await codeforces.getSolvedProblemKeys(handle);
+    for (const key of solved) {
+      if (!problemKeys.has(key)) continue;
+      if (!solvedByProblem[key]) solvedByProblem[key] = [];
+      solvedByProblem[key].push(handle);
+    }
+  }
+
+  return res.json({
+    ok: true,
+    contestId: contest._id,
+    solvedByProblem,
+  });
+});
+
+module.exports = {
+  createContest,
+  getContestById,
+  getContestProgress,
+  getContests,
+};

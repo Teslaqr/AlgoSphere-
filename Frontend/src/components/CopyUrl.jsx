@@ -1,5 +1,4 @@
-'use client'
-import React, { useState } from 'react'
+import { useState } from 'react'
 import { FaCheck, FaCopy } from 'react-icons/fa'
 
 const CopyUrl = () => {
@@ -25,12 +24,12 @@ const CopyUrl = () => {
       };
 
   return (
-    <div className='mt-10 flex justify-center'>
-        <button onClick={handleCopyLink} className='flex items-center text-blue-500 hover:text-blue-700'>
+    <div className='flex justify-center'>
+        <button onClick={handleCopyLink} className='inline-flex items-center rounded-md bg-white px-4 py-2 text-sm font-semibold text-slate-950 shadow-sm transition hover:bg-slate-100'>
         {isCopied ? (
-            <FaCheck className='mr-2' style={{ width: '24px', height: '24px' }} />
+            <FaCheck className='mr-2' />
         ) : (
-            <FaCopy className='mr-2' style={{ width: '24px', height: '24px' }} />
+            <FaCopy className='mr-2' />
         )}
         {copyButtonText}
         </button>

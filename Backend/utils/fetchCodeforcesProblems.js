@@ -1,22 +1,72 @@
-// utils/fetchCodeforcesProblems.js
-const fetch = require('node-fetch');
+const codeforces = require('./codeforcesClient');
 const { unwantedContests } = require('./unwantedContests');
 
-// Helper: round rating to 100s with randomness
 const roundOff = (num) => {
-  const rem = num % 100;
+  const rem = Math.abs(num % 100);
   return Math.random() < rem / 100 ? num + (100 - rem) : num - rem;
 };
 
-// Helper: shuffle an array
 const shuffle = (array) => {
   for (let i = array.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (array.length - 1));
+    const j = Math.floor(Math.random() * (i + 1));
     [array[i], array[j]] = [array[j], array[i]];
   }
+  return array;
 };
 
-// Main fetch function (you'll pass all frontend form data here)
+const { problemKey } = codeforces;
+
+const normalizeProblem = (problem) => ({
+  contestId: problem.contestId,
+  index: problem.index,
+  name: problem.name,
+  type: problem.type,
+  rating: problem.rating,
+  tags: problem.tags || [],
+  url: `https://codeforces.com/contest/${problem.contestId}/problem/${problem.index}`,
+});
+
+const minimumContestByYear = (year) => {
+  const map = {
+    2018: 912,
+    2019: 1097,
+    2020: 1284,
+    2021: 1472,
+    2022: 1621,
+    2023: 1770,
+    2024: 1900,
+    2025: 2000,
+  };
+
+  const numericYear = Number(year);
+  if (!numericYear || numericYear <= 2017) return 0;
+  return map[numericYear] || 0;
+};
+
+const ratingPlan = ({
+  numQuestions,
+  lowerDifficulty,
+  upperDifficulty,
+  chooseDifficulty,
+  diffArr,
+}) => {
+  if (chooseDifficulty === 'true') {
+    return diffArr.map(Number);
+  }
+
+  if (chooseDifficulty === 'false') {
+    if (numQuestions === 1) return [Number(lowerDifficulty)];
+    const step = (Number(upperDifficulty) - Number(lowerDifficulty)) / (numQuestions - 1);
+    return Array.from({ length: numQuestions }, (_, index) => roundOff(Number(lowerDifficulty) + step * index));
+  }
+
+  return Array.from({ length: numQuestions }, () => {
+    const low = Number(lowerDifficulty);
+    const high = Number(upperDifficulty);
+    return roundOff(low + Math.random() * (high - low));
+  });
+};
+
 const fetchContestProblems = async ({
   handles,
   numQuestions,
@@ -28,89 +78,84 @@ const fetchContestProblems = async ({
   diffArr,
   startYear,
 }) => {
-  const timeLimitMillis = 10000;
-  const startTime = Date.now();
+  const users = await codeforces.getUserInfo(handles);
+  const canonicalHandles = users.map((user) => user.handle);
 
-  // Get full problemset
-  const response = await fetch('https://codeforces.com/api/problemset.problems');
-  const data = await response.json();
-  if (data.status !== "OK") throw new Error("Codeforces problemset fetch failed");
+  const problemset = await codeforces.getProblemset();
 
-  // Group by rating
-  const classified = {};
-  for (const problem of data.result.problems) {
-    if (!classified[problem.rating]) classified[problem.rating] = [];
-    classified[problem.rating].push(problem);
-  }
-
-  // Fetch solved problems for each user
   const solvedSet = new Set();
-  for (const handle of handles) {
-    const count = Math.floor(Math.random() * 1000) + 10000;
-    const res = await fetch(`https://codeforces.com/api/user.status?handle=${handle}&count=${count}`);
-    const json = await res.json();
-    if (json.status !== "OK") throw new Error(`Invalid handle ${handle}`);
-    for (const sub of json.result) {
-      solvedSet.add(`${sub.problem.contestId}${sub.problem.index}`);
+  for (const handle of canonicalHandles) {
+    const userSolved = await codeforces.getSolvedProblemKeys(handle);
+    for (const key of userSolved) {
+      solvedSet.add(key);
     }
   }
 
-  // Main logic to pick problems
-  const newList = [];
-  let count = 0;
+  const selectedTags = Array.isArray(tags) ? tags.filter(Boolean) : [];
+  const minContestId = minimumContestByYear(startYear);
+  const selectedKeys = new Set();
+  const byRating = new Map();
 
-  const filterValid = (p) =>
-    !solvedSet.has(`${p.contestId}${p.index}`) &&
-    !unwantedContests.includes(p.contestId) &&
-    p.tags.some(t => tags.includes(t));
+  for (const problem of problemset.problems) {
+    if (!problem.contestId || !problem.index || !problem.rating) continue;
+    if (unwantedContests.includes(problem.contestId)) continue;
+    if (problem.contestId < minContestId) continue;
+    if (solvedSet.has(problemKey(problem))) continue;
+    if (selectedTags.length && !selectedTags.some((tag) => problem.tags?.includes(tag))) continue;
 
-  const includeByYear = (p) => {
-    const map = {
-      '2022': 1621,
-      '2021': 1472,
-      '2020': 1284,
-      '2019': 1097,
-      '2018': 912
-    };
-    return p.contestId >= map[startYear];
+    if (!byRating.has(problem.rating)) byRating.set(problem.rating, []);
+    byRating.get(problem.rating).push(problem);
+  }
+
+  for (const pool of byRating.values()) {
+    shuffle(pool);
+  }
+
+  const difficulties = ratingPlan({
+    numQuestions,
+    lowerDifficulty,
+    upperDifficulty,
+    chooseDifficulty,
+    diffArr,
+  });
+
+  const picked = [];
+  const candidateOffsets = [0, -100, 100, -200, 200, -300, 300, -400, 400];
+
+  for (const desiredRating of difficulties) {
+    let chosen = null;
+
+    for (const offset of candidateOffsets) {
+      const rating = desiredRating + offset;
+      const pool = byRating.get(rating) || [];
+      chosen = pool.find((problem) => !selectedKeys.has(problemKey(problem)));
+      if (chosen) break;
+    }
+
+    if (chosen) {
+      selectedKeys.add(problemKey(chosen));
+      picked.push(normalizeProblem(chosen));
+    }
+  }
+
+  if (picked.length < numQuestions) {
+    const fallbackPool = [...byRating.values()].flat().sort((a, b) => a.rating - b.rating);
+    for (const problem of fallbackPool) {
+      if (picked.length >= numQuestions) break;
+      if (selectedKeys.has(problemKey(problem))) continue;
+
+      selectedKeys.add(problemKey(problem));
+      picked.push(normalizeProblem(problem));
+    }
+  }
+
+  if (shuffleOrder) shuffle(picked);
+  else picked.sort((a, b) => (a.rating || 0) - (b.rating || 0));
+
+  return {
+    handles: canonicalHandles,
+    problems: picked,
   };
-
-  if (chooseDifficulty === 'false') {
-    const delta = (upperDifficulty - lowerDifficulty) / numQuestions;
-    let ratingStart = lowerDifficulty;
-
-    while (newList.length < numQuestions) {
-      if (Date.now() - startTime > timeLimitMillis || count > 100000) break;
-
-      const rating = roundOff(ratingStart + Math.random() * delta);
-      const pool = classified[rating] || [];
-      const chosen = pool.find(p => filterValid(p) && includeByYear(p));
-      if (chosen && !newList.includes(chosen)) newList.push(chosen);
-
-      ratingStart += delta;
-      count++;
-    }
-  } else if (chooseDifficulty === 'true') {
-    for (let i = 0; i < diffArr.length; i++) {
-      const rating = diffArr[i];
-      const pool = classified[rating] || [];
-      const chosen = pool.find(p => filterValid(p) && includeByYear(p));
-      if (chosen && !newList.includes(chosen)) newList.push(chosen);
-    }
-  } else if (chooseDifficulty === 'distributeRandomly') {
-    while (newList.length < numQuestions && count < 100000) {
-      const rating = roundOff(Math.random() * (upperDifficulty - lowerDifficulty)) + lowerDifficulty;
-      const pool = classified[rating] || [];
-      const chosen = pool.find(p => filterValid(p) && includeByYear(p));
-      if (chosen && !newList.includes(chosen)) newList.push(chosen);
-      count++;
-    }
-  }
-
-  if (shuffleOrder) shuffle(newList);
-  else if (chooseDifficulty !== 'true') newList.sort((a, b) => a.rating - b.rating);
-
-  return newList;
 };
 
 module.exports = fetchContestProblems;

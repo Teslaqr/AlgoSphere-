@@ -1,9 +1,9 @@
-// routes/problemRoutes.js
-import express from 'express';
-import { getAllProblems } from '../controllers/problemController.js';
+const express = require('express');
+const { getAllProblems, fetchAndStoreProblems } = require('../controllers/problemController');
 
 const router = express.Router();
 
 router.get('/', getAllProblems);
+router.post('/sync', fetchAndStoreProblems);
 
-export default router;
+module.exports = router;

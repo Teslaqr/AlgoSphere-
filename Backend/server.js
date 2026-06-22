@@ -1,11 +1,14 @@
 const express = require('express');
 const cors = require('cors');
 const dotenv = require('dotenv');
-const mongoose = require('mongoose');
-
-const contestRoutes = require('./routes/contestRoutes');
 
 dotenv.config();
+
+const connectDB = require('./config/db');
+const codeforcesRoutes = require('./routes/codeforcesRoutes');
+const contestRoutes = require('./routes/contestRoutes');
+const problemRoutes = require('./routes/problemRoutes');
+const errorHandler = require('./middleware/errorHandler');
 
 const app = express();
 
@@ -15,16 +18,13 @@ app.use(express.json());
 
 // Routes
 app.use('/api/contests', contestRoutes);
+app.use('/api/codeforces', codeforcesRoutes);
+app.use('/api/problems', problemRoutes);
+app.get('/api/health', (req, res) => res.json({ ok: true, message: 'Competitive Helper API is running' }));
 
-// DB Connection
-mongoose.connect(process.env.MONGO_URI, {
-  useNewUrlParser: true,
-  useUnifiedTopology: true
-}).then(() => {
-  console.log('MongoDB connected');
-  // Start Server
+app.use(errorHandler);
+
+connectDB().then(() => {
   const PORT = process.env.PORT || 5000;
   app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
-}).catch(err => {
-  console.error('DB connection failed:', err.message);
 });

@@ -1,6 +1,6 @@
 import React, { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import tagList from '../utils/tags'
+import { tagsList } from '../utils/tags'
 import { createContest } from '../services/contestServices'
 import Spinner from '../components/Spinner'
 
@@ -69,7 +69,7 @@ const CreateContest = () => {
       }
     } catch (err) {
       console.error('Failed to create contest:', err)
-      alert('Error creating contest. Please try again.')
+      alert(err.message || 'Error creating contest. Please try again.')
     } finally {
       setLoading(false)
     }
@@ -183,7 +183,7 @@ const CreateContest = () => {
           <div>
             <label className="block font-semibold">Tags</label>
             <div className="flex flex-wrap gap-2">
-              {tagList.map(tag => (
+              {tagsList.map(tag => (
                 <button
                   key={tag}
                   type="button"

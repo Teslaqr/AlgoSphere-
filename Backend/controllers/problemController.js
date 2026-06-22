@@ -1,9 +1,7 @@
-import axios from 'axios';
-import Problem from '../models/problem.js';
+const axios = require('axios');
+const Problem = require('../models/problem');
 
-
-
-export const getAllProblems = async (req, res) => {
+const getAllProblems = async (req, res) => {
   try {
     const problems = await Problem.find();
     res.json(problems);
@@ -12,8 +10,7 @@ export const getAllProblems = async (req, res) => {
   }
 };
 
-
-export const fetchAndStoreProblems = async (req, res) => {
+const fetchAndStoreProblems = async (req, res) => {
   try {
     const { data } = await axios.get('https://codeforces.com/api/problemset.problems');
 
@@ -38,4 +35,9 @@ export const fetchAndStoreProblems = async (req, res) => {
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
+};
+
+module.exports = {
+  getAllProblems,
+  fetchAndStoreProblems,
 };
