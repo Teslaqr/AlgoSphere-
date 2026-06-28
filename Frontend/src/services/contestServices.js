@@ -1,5 +1,7 @@
+import { apiUrl } from '../utils/api'
+
 export const createContest = async (data) => {
-  const response = await fetch('http://localhost:5000/api/contests', {
+  const response = await fetch(apiUrl('/api/contests'), {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',

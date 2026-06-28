@@ -10,6 +10,7 @@ import {
 import Spinner from '../components/Spinner'
 import CountdownTimer from '../components/CountdownTimer'
 import CopyUrl from '../components/CopyUrl'
+import { apiUrl } from '../utils/api'
 
 const formatDateTime = (date) => (
   new Intl.DateTimeFormat(undefined, {
@@ -34,7 +35,7 @@ const ContestPage = () => {
   useEffect(() => {
     const fetchContest = async () => {
       try {
-        const res = await fetch(`http://localhost:5000/api/contests/${id}`)
+        const res = await fetch(apiUrl(`/api/contests/${id}`))
         const data = await res.json()
         setContestData(data.ok === false ? null : data)
       } catch (error) {
@@ -52,7 +53,7 @@ const ContestPage = () => {
 
     const fetchProgress = async () => {
       try {
-        const res = await fetch(`http://localhost:5000/api/contests/${id}/progress`)
+        const res = await fetch(apiUrl(`/api/contests/${id}/progress`))
         const data = await res.json()
         if (data.ok) {
           setSolvedByProblem(data.solvedByProblem || {})
