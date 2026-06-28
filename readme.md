@@ -74,7 +74,7 @@ npm run dev
 ---
 
 ### 🌐 Live Demo  
-[🚀 Try the Platform Here](https://code-sync-sandy.vercel.app/)
+[🚀 Try the Platform Here](https://algo-sphere-psi.vercel.app/)
 
 ------
 
